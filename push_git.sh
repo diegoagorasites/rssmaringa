@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 
 # Carrega variáveis do .env
 export $(grep -v '^#' .env | xargs)
@@ -17,4 +17,4 @@ git add .
 git commit -m "Commit automático via script"
 
 # Faz o push usando URL com autenticação embutida
-git push origin $BRANCH
+git push -f origin $BRANCH
