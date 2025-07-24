@@ -1,32 +1,20 @@
 #!/bin/bash
 
-# Pega a mensagem base do commit (argumento opcional)
-BASE_MSG=$1
+# Carrega variáveis do .env
+export $(grep -v '^#' .env | xargs)
 
-# Pega a data e hora atual formatada (ex: 2025-07-24 16:50:30)
-NOW=$(date "+%Y-%m-%d %H:%M:%S")
+# Monta URL com usuário e token embutidos
+REPO_AUTH_URL="https://${GIT_USER}:${GIT_PASS}@github.com/${GIT_USER}/seuRepo.git"
 
-# Monta a mensagem final do commit
-if [ -z "$BASE_MSG" ]; then
-  COMMIT_MSG="Commit automático em $NOW"
-else
-  COMMIT_MSG="$BASE_MSG - $NOW"
-fi
+# Ajusta o remote origin para usar essa URL com autenticação
+git remote set-url origin "$REPO_AUTH_URL"
 
-# Pega o branch atual
+# Detecta branch atual
 BRANCH=$(git branch --show-current)
-echo "Branch atual: $BRANCH"
 
-# Mostra status
-git status
-
-# Mostra commits locais que ainda não foram enviados
-echo "Commits locais que ainda não foram enviados:"
-git log origin/$BRANCH..HEAD --oneline
-
-# Adiciona e comita tudo
+# Adiciona e comita tudo (você pode ajustar mensagem aqui)
 git add .
-git commit -m "$COMMIT_MSG"
+git commit -m "Commit automático via script"
 
-# Faz push para o remote no branch atual
+# Faz o push usando URL com autenticação embutida
 git push origin $BRANCH
