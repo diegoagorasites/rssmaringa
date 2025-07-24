@@ -1,34 +1,32 @@
 #!/bin/bash
 
-# Carrega variáveis do .env
-export $(grep -v '^#' .env | xargs)
+# Pega a mensagem base do commit (argumento opcional)
+BASE_MSG=$1
 
-# Verifica se as variáveis estão setadas
-if [[ -z "$GIT_USER" || -z "$GIT_TOKEN" || -z "$GIT_REPO" ]]; then
-  echo "Erro: Variáveis GIT_USER, GIT_TOKEN ou GIT_REPO não estão definidas no .env"
-  exit 1
+# Pega a data e hora atual formatada (ex: 2025-07-24 16:50:30)
+NOW=$(date "+%Y-%m-%d %H:%M:%S")
+
+# Monta a mensagem final do commit
+if [ -z "$BASE_MSG" ]; then
+  COMMIT_MSG="Commit automático em $NOW"
+else
+  COMMIT_MSG="$BASE_MSG - $NOW"
 fi
 
-# Inicializa repositório (se ainda não inicializado)
-if [ ! -d .git ]; then
-  git init
-  echo "Repositório Git inicializado."
-fi
+# Pega o branch atual
+BRANCH=$(git branch --show-current)
+echo "Branch atual: $BRANCH"
 
-# Adiciona remote (remove se existir)
-git remote remove origin 2> /dev/null
+# Mostra status
+git status
 
-git remote add origin https://${GIT_USER}:${GIT_TOKEN}@github.com/${GIT_USER}/${GIT_REPO}
+# Mostra commits locais que ainda não foram enviados
+echo "Commits locais que ainda não foram enviados:"
+git log origin/$BRANCH..HEAD --oneline
 
-echo "Remote configurado: origin"
-
-# Adiciona todos os arquivos
+# Adiciona e comita tudo
 git add .
+git commit -m "$COMMIT_MSG"
 
-# Faz commit com mensagem padrão
-git commit -m "Commit automático via script" || echo "Nada para commitar."
-
-# Tenta push para master, se falhar tenta main
-git push -u origin master || git push -u origin main
-
-echo "Push realizado."
+# Faz push para o remote no branch atual
+git push origin $BRANCH
