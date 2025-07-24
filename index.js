@@ -4,11 +4,9 @@ import { create } from 'xmlbuilder2';
 import fs from 'fs/promises';
 import path from 'path';
 
-// Função para puxar as notícias
 async function puxarNoticiasMaringa(limite = 5) {
   const baseUrl = 'https://www.maringa.pr.gov.br';
   const url = baseUrl + '/noticias/';
-
   try {
     const response = await axios.get(url, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
@@ -35,7 +33,6 @@ async function puxarNoticiasMaringa(limite = 5) {
       let dataPublicacao = new Date().toUTCString();
 
       if (dataEl) {
-        // Data no formato DD/MM/YYYY
         const dataBr = dataEl.textContent.trim();
         const [dia, mes, ano] = dataBr.split('/');
         if (dia && mes && ano) {
@@ -44,7 +41,6 @@ async function puxarNoticiasMaringa(limite = 5) {
         }
       }
 
-      // Pegar o conteúdo completo via outra requisição
       let conteudo = '';
       if (link) {
         try {
@@ -55,9 +51,7 @@ async function puxarNoticiasMaringa(limite = 5) {
           const domDetalhe = new JSDOM(detalheResp.data);
           const contentNodes = domDetalhe.window.document.querySelectorAll('div.editor-reset');
           conteudo = Array.from(contentNodes).map(n => n.innerHTML).join('');
-        } catch {
-          conteudo = '';
-        }
+        } catch {}
       }
 
       const imgEl = item.querySelector('img');
@@ -74,13 +68,11 @@ async function puxarNoticiasMaringa(limite = 5) {
     }
 
     return resultado;
-  } catch (err) {
-    console.error('Erro ao puxar notícias:', err.message);
+  } catch {
     return [];
   }
 }
 
-// Função para gerar o RSS em XML
 async function gerarRSS(noticias) {
   const feedUrl = 'https://raw.githubusercontent.com/diegoagorasites/rssmaringa/master/data/rss.xml';
 
@@ -124,7 +116,6 @@ async function gerarRSS(noticias) {
 
   const xml = feed.end({ prettyPrint: true });
 
-  // Salvar o arquivo rss.xml na pasta data
   const dataDir = path.resolve('./data');
   try {
     await fs.mkdir(dataDir, { recursive: true });
@@ -132,14 +123,12 @@ async function gerarRSS(noticias) {
 
   const filePath = path.join(dataDir, 'rss.xml');
   await fs.writeFile(filePath, xml, 'utf8');
-
-  console.log('RSS gerado em:', filePath);
 }
 
-// Execução principal
-async function main() {
-  const noticias = await puxarNoticiasMaringa(5);
-  await gerarRSS(noticias);
-}
-
-main().catch(console.error);
+// Execução silenciosa
+(async () => {
+  try {
+    const noticias = await puxarNoticiasMaringa(5);
+    await gerarRSS(noticias);
+  } catch {}
+})();

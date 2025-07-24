@@ -1,20 +1,30 @@
-﻿#!/bin/bash
+#!/bin/bash
+
+echo "🚀 Iniciando push automático..."
 
 # Carrega variáveis do .env
 export $(grep -v '^#' .env | xargs)
 
-# Monta URL com usuário e token embutidos
-REPO_AUTH_URL="https://${GIT_USER}:${GIT_PASS}@github.com/${GIT_USER}/seuRepo.git"
+# Configura nome e email do usuário
+git config --global user.name "$GIT_USER"
+git config --global user.email "$GIT_EMAIL"
 
-# Ajusta o remote origin para usar essa URL com autenticação
-git remote set-url origin "$REPO_AUTH_URL"
+# Remove credential helper que não existe
+git config --global --unset credential.helper
 
-# Detecta branch atual
-BRANCH=$(git branch --show-current)
+# Adiciona o arquivo específico
+git add data/rss.xml
 
-# Adiciona e comita tudo (você pode ajustar mensagem aqui)
-git add .
-git commit -m "Commit automático via script"
+# Verifica se há algo a commitar
+if git diff --cached --quiet; then
+  echo "✅ Nada para commitar"
+else
+  echo "📦 Commitando arquivo..."
+  git commit -m "Atualização automática do RSS em $(date '+%Y-%m-%d %H:%M:%S')"
+fi
 
-# Faz o push usando URL com autenticação embutida
-git push -f origin $BRANCH
+# Push com autenticação direta
+echo "📤 Enviando para o repositório..."
+git push https://${GIT_USERNAME}:${GITHUB_TOKEN}@${REPO_URL} master
+
+echo "✔️ Push finalizado com sucesso."
