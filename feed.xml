@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<rss version="2.0">
+<channel>
+  <title>RSS de Exemplo</title>
+  <link>https://www.maringa.pr.gov.br/noticias</link>
+  <description>Feed RSS automático</description>
+  <item>
+    <title>Notícia Exemplo</title>
+    <link>https://www.maringa.pr.gov.br/noticias/noticia-exemplo</link>
+    <description>Conteúdo gerado automaticamente</description>
+  </item>
+</channel>
+</rss>
