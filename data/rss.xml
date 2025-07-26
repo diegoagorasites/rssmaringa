@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<rss version="2.0">
+  <channel>
+    <title>Notícias Maringá</title>
+    <link>https://www.maringa.pr.gov.br/noticias</link>
+    <description>Feed automático</description>
+    <item>
+      <title>Exemplo de notícia</title>
+      <link>https://www.maringa.pr.gov.br/noticias/noticia-exemplo</link>
+      <description>Descrição da notícia.</description>
+      <pubDate>Sat, 26 Jul 2025 19:10:39 GMT</pubDate>
+    </item>
+  </channel>
+</rss>
