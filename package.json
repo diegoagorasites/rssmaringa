@@ -1,0 +1,18 @@
+{
+  "name": "rss-app",
+  "version": "1.0.0",
+  "description": "App para gerar RSS automático e menu de configuração",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron main.cjs",
+    "config": "electron configWindow.js"
+  },
+  "dependencies": {
+    "axios": "^1.0.0",
+    "cheerio": "^1.0.0-rc.10",
+    "electron": "^26.0.0",
+    "jsdom": "^22.0.0",
+    "simple-git": "^3.16.0",
+    "xmlbuilder2": "^3.0.2"
+  }
+}

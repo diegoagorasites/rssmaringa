@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Configuração RSS</title>
+</head>
+<body>
+  <form id="config-form">
+    <label>URL do site:</label><br/>
+    <input type="text" id="siteUrl" placeholder="https://exemplo.com/noticias" /><br/><br/>
+
+    <label>GitHub Repo (URL):</label><br/>
+    <input type="text" id="gitRepo" placeholder="https://github.com/usuario/repositorio.git" /><br/><br/>
+
+    <label>Nome do Git:</label><br/>
+    <input type="text" id="gitName" placeholder="Seu Nome" /><br/><br/>
+
+    <label>Email do Git:</label><br/>
+    <input type="email" id="gitEmail" placeholder="seu@email.com" /><br/><br/>
+
+    <label>Token do GitHub:</label><br/>
+    <input type="password" id="gitToken" placeholder="ghp_abc123..." /><br/><br/>
+
+    <button type="submit">Salvar Configuração</button>
+  </form>
+
+  <div id="status"></div>
+
+  <script src="./renderer.js"></script>
+</body>
+</html>
