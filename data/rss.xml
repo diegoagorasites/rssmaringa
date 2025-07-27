@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
-    <title>Notícias - Prefeitura de Maringá</title>
+    <title>RSS - Site de Maringá</title>
     <link>https://www.maringa.pr.gov.br/noticias</link>
-    <description>Últimas notícias da Prefeitura de Maringá</description>
+    <description>Gerador DHP Digital</description>
     <language>pt-BR</language>
-    <pubDate>Sun, 27 Jul 2025 22:49:27 GMT</pubDate>
+    <pubDate>Sun, 27 Jul 2025 22:51:50 GMT</pubDate>
     <atom:link href="https://raw.githubusercontent.com/diegoagorasites/rssmaringa/master/data/rss.xml" rel="self" type="application/rss+xml"/>
     <item>
       <title><![CDATA[Prefeitura de Maringá e Itaipu Binacional assinam ordens de serviço para pavimentação asfáltica de estradas rurais]]></title>
