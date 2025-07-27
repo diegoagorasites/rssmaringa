@@ -148,7 +148,7 @@ async function pushGit(config) {
   try {
     await execPromise('git add .');
     await execPromise(`git commit -m "Atualização automática do RSS"`);
-    await execPromise(`git push https://${config.gitToken}@${config.gitRepo.replace('https://', '')} ${config.gitBranch}`);
+    await execPromise(`git push https://${config.gitToken}@${config.gitRepo.replace('https://', '')} ${config.Branch}`);
     console.log('Push para Git realizado com sucesso!');
   } catch (err) {
     console.error('Erro no push do Git:', err.message);
