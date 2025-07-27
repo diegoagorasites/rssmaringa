@@ -25,14 +25,8 @@ async function puxarNoticias(siteUrl, limite = 5) {
       timeout: 15000,
     });
 
-    // Criar o DOM com algumas opções para evitar erros CSS
-    const dom = new JSDOM(response.data, {
-      resources: "usable",
-      runScripts: "dangerously",
-    });
+    const dom = new JSDOM(response.data);
     const document = dom.window.document;
-    
-    // Ajuste o seletor abaixo conforme estrutura do site
     const noticias = [...document.querySelectorAll('div.list-item')].slice(0, limite);
 
     const resultado = [];
@@ -49,6 +43,7 @@ async function puxarNoticias(siteUrl, limite = 5) {
 
       const dataEl = item.querySelector('span.p-tag-label');
       let dataPublicacao = new Date().toUTCString();
+
       if (dataEl) {
         const dataBr = dataEl.textContent.trim();
         const [dia, mes, ano] = dataBr.split('/');
@@ -65,14 +60,21 @@ async function puxarNoticias(siteUrl, limite = 5) {
             headers: { 'User-Agent': 'Mozilla/5.0' },
             timeout: 15000,
           });
-          const domDetalhe = new JSDOM(detalheResp.data, {
-            resources: "usable",
-            runScripts: "dangerously",
+          const domDetalhe = new JSDOM(detalheResp.data);
+
+          // Remove tags que costumam causar erro e não interessam no RSS
+          const toRemove = ['style', 'script', 'link', 'iframe', 'noscript'];
+          toRemove.forEach(tag => {
+            const nodes = domDetalhe.window.document.querySelectorAll(tag);
+            nodes.forEach(n => n.remove());
           });
+
+          // Seleciona o conteúdo principal
           const contentNodes = domDetalhe.window.document.querySelectorAll('div.editor-reset');
+
           conteudo = Array.from(contentNodes).map(n => n.innerHTML).join('');
-        } catch (e) {
-          // Pode logar ou ignorar erro no detalhe da notícia
+        } catch (err) {
+          console.error('Erro ao puxar conteúdo detalhado:', err.message);
         }
       }
 
@@ -90,7 +92,8 @@ async function puxarNoticias(siteUrl, limite = 5) {
     }
 
     return resultado;
-  } catch {
+  } catch (err) {
+    console.error('Erro ao puxar notícias:', err.message);
     return [];
   }
 }
@@ -106,16 +109,28 @@ async function gerarRSS(noticias, config) {
     })
     .ele('channel');
 
-  feed.ele('title').txt(`Notícias - ${config.siteUrl}`).up()
-    .ele('link').txt(config.siteUrl).up()
-    .ele('description').txt(`Últimas notícias de ${config.siteUrl}`).up()
-    .ele('language').txt('pt-BR').up()
-    .ele('pubDate').txt(new Date().toUTCString()).up()
+  feed
+    .ele('title')
+    .txt(`Notícias - ${config.siteUrl}`)
+    .up()
+    .ele('link')
+    .txt(config.siteUrl)
+    .up()
+    .ele('description')
+    .txt(`Últimas notícias de ${config.siteUrl}`)
+    .up()
+    .ele('language')
+    .txt('pt-BR')
+    .up()
+    .ele('pubDate')
+    .txt(new Date().toUTCString())
+    .up()
     .ele('atom:link', {
       href: feedUrl,
       rel: 'self',
       type: 'application/rss+xml',
-    }).up();
+    })
+    .up();
 
   for (const item of noticias) {
     const rssItem = feed.ele('item');
@@ -125,10 +140,12 @@ async function gerarRSS(noticias, config) {
     rssItem.ele('pubDate').txt(item.data).up();
     rssItem.ele('guid').txt(item.link).up();
     if (item.imagem) {
-      rssItem.ele('enclosure', {
-        url: item.imagem,
-        type: 'image/jpeg',
-      }).up();
+      rssItem
+        .ele('enclosure', {
+          url: item.imagem,
+          type: 'image/jpeg',
+        })
+        .up();
     }
     rssItem.ele('content:encoded').dat(item.conteudo).up();
     rssItem.up();
@@ -140,11 +157,8 @@ async function gerarRSS(noticias, config) {
 
   const dataDir = path.resolve('./data');
   await fs.mkdir(dataDir, { recursive: true });
-
   const filePath = path.join(dataDir, 'rss.xml');
   await fs.writeFile(filePath, xml, 'utf8');
-
-  return filePath;
 }
 
 async function pushGit(config) {
@@ -173,8 +187,8 @@ async function pushGit(config) {
       }
     }
 
-    await execPromise(`git branch -M ${config.gitBranch || 'master'}`, { cwd });
-    await execPromise(`git push -f origin ${config.gitBranch || 'master'}`, { cwd });
+    await execPromise(`git branch -M master`, { cwd });
+    await execPromise(`git push -f origin master`, { cwd });
 
     console.log('✅ Push no GitHub realizado com sucesso!');
   } catch (err) {
@@ -188,7 +202,7 @@ async function pushGit(config) {
     const config = await readConfig();
 
     const noticias = await puxarNoticias(config.siteUrl, 5);
-    const rssFilePath = await gerarRSS(noticias, config);
+    await gerarRSS(noticias, config);
     await pushGit(config);
 
     console.log('✅ RSS gerado e enviado com sucesso!');
