@@ -3,8 +3,8 @@ import { JSDOM } from 'jsdom';
 import { create } from 'xmlbuilder2';
 import fs from 'fs/promises';
 import path from 'path';
-import { exec } from 'child_process';
 import util from 'util';
+import { exec } from 'child_process';
 
 const execPromise = util.promisify(exec);
 
@@ -17,10 +17,6 @@ async function readConfig() {
   }
 }
 
-function limparHTML(html) {
-  return html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
-}
-
 async function puxarNoticias(siteUrl, limite = 5) {
   const baseUrl = siteUrl.replace(/\/+$/, '');
   try {
@@ -29,9 +25,14 @@ async function puxarNoticias(siteUrl, limite = 5) {
       timeout: 15000,
     });
 
-    const htmlLimpo = limparHTML(response.data);
-    const dom = new JSDOM(htmlLimpo);
+    // Criar o DOM com algumas opções para evitar erros CSS
+    const dom = new JSDOM(response.data, {
+      resources: "usable",
+      runScripts: "dangerously",
+    });
     const document = dom.window.document;
+    
+    // Ajuste o seletor abaixo conforme estrutura do site
     const noticias = [...document.querySelectorAll('div.list-item')].slice(0, limite);
 
     const resultado = [];
@@ -48,7 +49,6 @@ async function puxarNoticias(siteUrl, limite = 5) {
 
       const dataEl = item.querySelector('span.p-tag-label');
       let dataPublicacao = new Date().toUTCString();
-
       if (dataEl) {
         const dataBr = dataEl.textContent.trim();
         const [dia, mes, ano] = dataBr.split('/');
@@ -65,12 +65,14 @@ async function puxarNoticias(siteUrl, limite = 5) {
             headers: { 'User-Agent': 'Mozilla/5.0' },
             timeout: 15000,
           });
-          const htmlDetalheLimpo = limparHTML(detalheResp.data);
-          const domDetalhe = new JSDOM(htmlDetalheLimpo);
+          const domDetalhe = new JSDOM(detalheResp.data, {
+            resources: "usable",
+            runScripts: "dangerously",
+          });
           const contentNodes = domDetalhe.window.document.querySelectorAll('div.editor-reset');
           conteudo = Array.from(contentNodes).map(n => n.innerHTML).join('');
-        } catch (err) {
-          console.error('⚠️ Erro ao puxar conteúdo da notícia:', err.message);
+        } catch (e) {
+          // Pode logar ou ignorar erro no detalhe da notícia
         }
       }
 
@@ -88,13 +90,14 @@ async function puxarNoticias(siteUrl, limite = 5) {
     }
 
     return resultado;
-  } catch (err) {
-    console.error('❌ Erro ao puxar notícias:', err.message);
+  } catch {
     return [];
   }
 }
 
-async function gerarRSS(noticias, siteUrl, filePath) {
+async function gerarRSS(noticias, config) {
+  const feedUrl = `${config.gitRepo.replace('.git', '')}/raw/${config.gitBranch || 'master'}/data/rss.xml`;
+
   const feed = create({ version: '1.0', encoding: 'UTF-8' })
     .ele('rss', {
       version: '2.0',
@@ -103,14 +106,13 @@ async function gerarRSS(noticias, siteUrl, filePath) {
     })
     .ele('channel');
 
-  feed
-    .ele('title').txt(`Notícias - ${siteUrl}`).up()
-    .ele('link').txt(siteUrl).up()
-    .ele('description').txt(`Últimas notícias de ${siteUrl}`).up()
+  feed.ele('title').txt(`Notícias - ${config.siteUrl}`).up()
+    .ele('link').txt(config.siteUrl).up()
+    .ele('description').txt(`Últimas notícias de ${config.siteUrl}`).up()
     .ele('language').txt('pt-BR').up()
     .ele('pubDate').txt(new Date().toUTCString()).up()
     .ele('atom:link', {
-      href: filePath,
+      href: feedUrl,
       rel: 'self',
       type: 'application/rss+xml',
     }).up();
@@ -132,10 +134,17 @@ async function gerarRSS(noticias, siteUrl, filePath) {
     rssItem.up();
   }
 
+  feed.up();
+
   const xml = feed.end({ prettyPrint: true });
-  const dataDir = path.dirname(filePath);
+
+  const dataDir = path.resolve('./data');
   await fs.mkdir(dataDir, { recursive: true });
+
+  const filePath = path.join(dataDir, 'rss.xml');
   await fs.writeFile(filePath, xml, 'utf8');
+
+  return filePath;
 }
 
 async function pushGit(config) {
@@ -147,28 +156,30 @@ async function pushGit(config) {
   }
 
   try {
-    await execPromise(`git init`, { cwd, maxBuffer: 1024 * 1024 });
-    await execPromise(`git remote remove origin || true`, { cwd, maxBuffer: 1024 * 1024 });
-    await execPromise(`git remote add origin ${repoUrl}`, { cwd, maxBuffer: 1024 * 1024 });
-    await execPromise(`git config user.name "${config.gitName}"`, { cwd, maxBuffer: 1024 * 1024 });
-    await execPromise(`git config user.email "${config.gitEmail}"`, { cwd, maxBuffer: 1024 * 1024 });
-    await execPromise(`git add .`, { cwd, maxBuffer: 1024 * 1024 });
+    await execPromise(`git init`, { cwd });
+    await execPromise(`git remote remove origin || true`, { cwd });
+    await execPromise(`git remote add origin ${repoUrl}`, { cwd });
+
+    await execPromise(`git config user.name "${config.gitName}"`, { cwd });
+    await execPromise(`git config user.email "${config.gitEmail}"`, { cwd });
+
+    await execPromise(`git add .`, { cwd });
 
     try {
-      await execPromise(`git commit -m "Atualização automática do RSS"`, { cwd, maxBuffer: 1024 * 1024 });
+      await execPromise(`git commit -m "Atualização automática do RSS"`, { cwd });
     } catch (commitErr) {
       if (!/nothing to commit/.test(commitErr.stderr)) {
         throw commitErr;
       }
     }
 
-    await execPromise(`git branch -M master`, { cwd, maxBuffer: 1024 * 1024 });
-    await execPromise(`git push -f origin master`, { cwd, maxBuffer: 1024 * 1024 });
+    await execPromise(`git branch -M ${config.gitBranch || 'master'}`, { cwd });
+    await execPromise(`git push -f origin ${config.gitBranch || 'master'}`, { cwd });
 
     console.log('✅ Push no GitHub realizado com sucesso!');
   } catch (err) {
-    console.error('❌ Erro no push:', err.message || err.stderr || err);
-    await fs.writeFile('debug-log.txt', JSON.stringify(err, null, 2));
+    console.error('❌ Erro no push:', err);
+    throw err;
   }
 }
 
@@ -177,14 +188,11 @@ async function pushGit(config) {
     const config = await readConfig();
 
     const noticias = await puxarNoticias(config.siteUrl, 5);
-    const rssFilePath = path.resolve('./data/rss.xml');
-
-    await gerarRSS(noticias, config.siteUrl, rssFilePath);
+    const rssFilePath = await gerarRSS(noticias, config);
     await pushGit(config);
 
     console.log('✅ RSS gerado e enviado com sucesso!');
   } catch (err) {
     console.error('❌ Erro geral:', err.message);
-    await fs.writeFile('debug-log.txt', err.stack || err.message || JSON.stringify(err));
   }
 })();
