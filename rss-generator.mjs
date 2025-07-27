@@ -21,7 +21,6 @@ async function readConfig() {
 // Função puxar notícias adaptada para receber a URL base via parâmetro
 async function puxarNoticiasMaringa(siteUrl, limite = 5) {
   const baseUrl = siteUrl.replace(/\/+$/, ''); // remove barra final se tiver
-  const url = baseUrl + '/noticias/';
   try {
     const response = await axios.get(url, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
