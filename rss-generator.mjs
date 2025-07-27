@@ -1,28 +1,26 @@
 import axios from 'axios';
-import { JSDOM, VirtualConsole } from 'jsdom';
+import { JSDOM } from 'jsdom';
 import { create } from 'xmlbuilder2';
 import fs from 'fs/promises';
 import path from 'path';
+import { exec } from 'child_process';
+import util from 'util';
 
+const execPromise = util.promisify(exec);
+
+// Função para ler o config.json
 async function readConfig() {
   try {
     const data = await fs.readFile(path.resolve('./config.json'), 'utf8');
     return JSON.parse(data);
-  } catch {
-    throw new Error('Configuração não encontrada. Rode o app para configurar.');
+  } catch (err) {
+    throw new Error('Erro ao ler config.json: ' + err.message);
   }
 }
 
-async function puxarNoticias(siteUrl, limite = 5) {
-  // Criando VirtualConsole para filtrar erro CSS do jsdom
-  const virtualConsole = new VirtualConsole();
-  virtualConsole.on('jsdomError', (error) => {
-    if (!error.message.includes('Could not parse CSS stylesheet')) {
-      console.error('JSDOM error:', error);
-    }
-  });
-
-  const baseUrl = siteUrl.replace(/\/+$/, '');
+// Função puxar notícias adaptada para receber a URL base via parâmetro
+async function puxarNoticiasMaringa(siteUrl, limite = 5) {
+  const baseUrl = siteUrl.replace(/\/+$/, ''); // remove barra final se tiver
   const url = baseUrl + '/noticias/';
   try {
     const response = await axios.get(url, {
@@ -30,7 +28,7 @@ async function puxarNoticias(siteUrl, limite = 5) {
       timeout: 15000,
     });
 
-    const dom = new JSDOM(response.data, { virtualConsole });
+    const dom = new JSDOM(response.data);
     const document = dom.window.document;
     const noticias = [...document.querySelectorAll('div.list-item')].slice(0, limite);
 
@@ -65,12 +63,10 @@ async function puxarNoticias(siteUrl, limite = 5) {
             headers: { 'User-Agent': 'Mozilla/5.0' },
             timeout: 15000,
           });
-          const domDetalhe = new JSDOM(detalheResp.data, { virtualConsole });
+          const domDetalhe = new JSDOM(detalheResp.data);
           const contentNodes = domDetalhe.window.document.querySelectorAll('div.editor-reset');
           conteudo = Array.from(contentNodes).map(n => n.innerHTML).join('');
-        } catch (e) {
-          console.warn('Erro ao puxar conteúdo detalhado:', e.message);
-        }
+        } catch {}
       }
 
       const imgEl = item.querySelector('img');
@@ -87,13 +83,13 @@ async function puxarNoticias(siteUrl, limite = 5) {
     }
 
     return resultado;
-  } catch (e) {
-    console.error('Erro geral:', e.message);
+  } catch {
     return [];
   }
 }
 
 async function gerarRSS(noticias, config) {
+  // Use o repo do config para montar o feedUrl
   const feedUrl = `${config.gitRepo.replace('.git', '')}/raw/${config.gitBranch || 'master'}/data/rss.xml`;
 
   const feed = create({ version: '1.0', encoding: 'UTF-8' })
@@ -105,8 +101,8 @@ async function gerarRSS(noticias, config) {
     .ele('channel');
 
   feed.ele('title').txt(`Notícias - ${config.siteUrl}`).up()
-    .ele('link').txt(config.siteUrl).up()
-    .ele('description').txt(`Últimas notícias de ${config.siteUrl}`).up()
+    .ele('link').txt(config.siteUrl + '/noticias/').up()
+    .ele('description').txt(`Últimas notícias da Prefeitura`).up()
     .ele('language').txt('pt-BR').up()
     .ele('pubDate').txt(new Date().toUTCString()).up()
     .ele('atom:link', {
@@ -145,9 +141,11 @@ async function gerarRSS(noticias, config) {
   await fs.writeFile(filePath, xml, 'utf8');
 }
 
+// Função para executar push no git
 async function pushGit(config) {
   const cwd = process.cwd();
 
+  // Se usar token para autenticação, injete no URL
   let repoUrl = config.gitRepo;
   if (config.gitToken && !repoUrl.includes(config.gitToken)) {
     repoUrl = repoUrl.replace('https://', `https://${config.gitToken}@`);
@@ -166,13 +164,14 @@ async function pushGit(config) {
     try {
       await execPromise(`git commit -m "Atualização automática do RSS"`, { cwd });
     } catch (commitErr) {
+      // Se não tiver nada para commitar, ignora
       if (!/nothing to commit/.test(commitErr.stderr)) {
         throw commitErr;
       }
     }
 
-    await execPromise(`git branch -M master`, { cwd });
-    await execPromise(`git push -f origin master`, { cwd });
+    await execPromise(`git branch -M ${config.gitBranch || 'master'}`, { cwd });
+    await execPromise(`git push -f origin ${config.gitBranch || 'master'}`, { cwd });
 
     console.log('✅ Push no GitHub realizado com sucesso!');
   } catch (err) {
@@ -181,21 +180,14 @@ async function pushGit(config) {
   }
 }
 
-import { exec } from 'child_process';
-import util from 'util';
-const execPromise = util.promisify(exec);
-
-// Main
 (async () => {
   try {
     const config = await readConfig();
 
-    const noticias = await puxarNoticias(config.siteUrl, 5);
+    const noticias = await puxarNoticiasMaringa(config.siteUrl, 5);
     await gerarRSS(noticias, config);
     await pushGit(config);
-
-    console.log('✅ RSS gerado, salvo e enviado para o GitHub com sucesso!');
   } catch (err) {
-    console.error('❌ Erro geral:', err.message);
+    console.error('Erro geral:', err);
   }
 })();
