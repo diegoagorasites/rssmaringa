@@ -1,0 +1,25 @@
+
+== Comando: git add . ==
+STDOUT:
+
+STDERR:
+warning: in the working copy of 'data/rss.xml', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'rss.xml', LF will be replaced by CRLF the next time Git touches it
+
+
+== Comando: git commit -m "Atualização automática" ==
+STDOUT:
+[master cc3eaf5] Atualização automática
+ 2 files changed, 62 insertions(+), 177 deletions(-)
+ create mode 100644 rss.xml
+
+STDERR:
+
+
+== Comando: git push -f origin master ==
+STDOUT:
+
+STDERR:
+To https://github.com/diegoagorasites/rssmaringa.git
+   02764c6..cc3eaf5  master -> master
+
