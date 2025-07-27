@@ -3,8 +3,8 @@ import { JSDOM } from 'jsdom';
 import { create } from 'xmlbuilder2';
 import fs from 'fs/promises';
 import path from 'path';
-import util from 'util';
 import { exec } from 'child_process';
+import util from 'util';
 
 const execPromise = util.promisify(exec);
 
@@ -17,10 +17,48 @@ async function readConfig() {
   }
 }
 
-async function puxarNoticias(siteUrl, limite = 5) {
-  const baseUrl = siteUrl.replace(/\/+$/, '');
+async function pushGit(config) {
+  const cwd = process.cwd();
+
+  let repoUrl = config.gitRepo;
+  if (config.gitToken && !repoUrl.includes(config.gitToken)) {
+    repoUrl = repoUrl.replace('https://', `https://${config.gitToken}@`);
+  }
+
   try {
-    const response = await axios.get(baseUrl, {
+    await execPromise(`git init`, { cwd });
+    await execPromise(`git remote remove origin || true`, { cwd });
+    await execPromise(`git remote add origin ${repoUrl}`, { cwd });
+
+    await execPromise(`git config user.name "${config.gitName}"`, { cwd });
+    await execPromise(`git config user.email "${config.gitEmail}"`, { cwd });
+
+    await execPromise(`git add .`, { cwd });
+
+    try {
+      await execPromise(`git commit -m "Atualização automática do RSS"`, { cwd });
+    } catch (commitErr) {
+      if (!/nothing to commit/.test(commitErr.stderr)) {
+        throw commitErr;
+      }
+    }
+
+    await execPromise(`git branch -M master`, { cwd });
+    await execPromise(`git push -f origin master`, { cwd });
+
+    console.log('✅ Push no GitHub realizado com sucesso!');
+  } catch (err) {
+    console.error('❌ Erro no push:', err);
+    throw err;
+  }
+}
+
+// Adaptado para receber siteUrl dinâmico do config
+async function puxarNoticiasMaringa(limite = 5, siteUrl = 'https://www.maringa.pr.gov.br') {
+  const baseUrl = siteUrl.replace(/\/+$/, '');
+  const url = baseUrl + '/noticias/';
+  try {
+    const response = await axios.get(url, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
       timeout: 15000,
     });
@@ -61,21 +99,9 @@ async function puxarNoticias(siteUrl, limite = 5) {
             timeout: 15000,
           });
           const domDetalhe = new JSDOM(detalheResp.data);
-
-          // Remove tags que costumam causar erro e não interessam no RSS
-          const toRemove = ['style', 'script', 'link', 'iframe', 'noscript'];
-          toRemove.forEach(tag => {
-            const nodes = domDetalhe.window.document.querySelectorAll(tag);
-            nodes.forEach(n => n.remove());
-          });
-
-          // Seleciona o conteúdo principal
           const contentNodes = domDetalhe.window.document.querySelectorAll('div.editor-reset');
-
           conteudo = Array.from(contentNodes).map(n => n.innerHTML).join('');
-        } catch (err) {
-          console.error('Erro ao puxar conteúdo detalhado:', err.message);
-        }
+        } catch {}
       }
 
       const imgEl = item.querySelector('img');
@@ -92,14 +118,14 @@ async function puxarNoticias(siteUrl, limite = 5) {
     }
 
     return resultado;
-  } catch (err) {
-    console.error('Erro ao puxar notícias:', err.message);
+  } catch {
     return [];
   }
 }
 
-async function gerarRSS(noticias, config) {
-  const feedUrl = `${config.gitRepo.replace('.git', '')}/raw/${config.gitBranch || 'master'}/data/rss.xml`;
+// Adaptado para usar o siteUrl do config no feed
+async function gerarRSS(noticias, siteUrl = 'https://www.maringa.pr.gov.br') {
+  const feedUrl = `${siteUrl.replace(/\/+$/, '')}/data/rss.xml`;
 
   const feed = create({ version: '1.0', encoding: 'UTF-8' })
     .ele('rss', {
@@ -109,28 +135,16 @@ async function gerarRSS(noticias, config) {
     })
     .ele('channel');
 
-  feed
-    .ele('title')
-    .txt(`Notícias - ${config.siteUrl}`)
-    .up()
-    .ele('link')
-    .txt(config.siteUrl)
-    .up()
-    .ele('description')
-    .txt(`Últimas notícias de ${config.siteUrl}`)
-    .up()
-    .ele('language')
-    .txt('pt-BR')
-    .up()
-    .ele('pubDate')
-    .txt(new Date().toUTCString())
-    .up()
+  feed.ele('title').txt(`Notícias - ${siteUrl}`).up()
+    .ele('link').txt(`${siteUrl}/noticias/`).up()
+    .ele('description').txt(`Últimas notícias de ${siteUrl}`).up()
+    .ele('language').txt('pt-BR').up()
+    .ele('pubDate').txt(new Date().toUTCString()).up()
     .ele('atom:link', {
       href: feedUrl,
       rel: 'self',
       type: 'application/rss+xml',
-    })
-    .up();
+    }).up();
 
   for (const item of noticias) {
     const rssItem = feed.ele('item');
@@ -140,12 +154,10 @@ async function gerarRSS(noticias, config) {
     rssItem.ele('pubDate').txt(item.data).up();
     rssItem.ele('guid').txt(item.link).up();
     if (item.imagem) {
-      rssItem
-        .ele('enclosure', {
-          url: item.imagem,
-          type: 'image/jpeg',
-        })
-        .up();
+      rssItem.ele('enclosure', {
+        url: item.imagem,
+        type: 'image/jpeg',
+      }).up();
     }
     rssItem.ele('content:encoded').dat(item.conteudo).up();
     rssItem.up();
@@ -156,57 +168,24 @@ async function gerarRSS(noticias, config) {
   const xml = feed.end({ prettyPrint: true });
 
   const dataDir = path.resolve('./data');
-  await fs.mkdir(dataDir, { recursive: true });
+  try {
+    await fs.mkdir(dataDir, { recursive: true });
+  } catch {}
+
   const filePath = path.join(dataDir, 'rss.xml');
   await fs.writeFile(filePath, xml, 'utf8');
 }
 
-async function pushGit(config) {
-  const cwd = process.cwd();
-
-  let repoUrl = config.gitRepo;
-  if (config.gitToken && !repoUrl.includes(config.gitToken)) {
-    repoUrl = repoUrl.replace('https://', `https://${config.gitToken}@`);
-  }
-
-  try {
-    await execPromise(`git init`, { cwd });
-    await execPromise(`git remote remove origin || true`, { cwd });
-    await execPromise(`git remote add origin ${repoUrl}`, { cwd });
-
-    await execPromise(`git config user.name "${config.gitName}"`, { cwd });
-    await execPromise(`git config user.email "${config.gitEmail}"`, { cwd });
-
-    await execPromise(`git add .`, { cwd });
-
-    try {
-      await execPromise(`git commit -m "Atualização automática do RSS"`, { cwd });
-    } catch (commitErr) {
-      if (!/nothing to commit/.test(commitErr.stderr)) {
-        throw commitErr;
-      }
-    }
-
-    await execPromise(`git branch -M master`, { cwd });
-    await execPromise(`git push -f origin master`, { cwd });
-
-    console.log('✅ Push no GitHub realizado com sucesso!');
-  } catch (err) {
-    console.error('❌ Erro no push:', err);
-    throw err;
-  }
-}
-
+// Execução principal com config.json e push git
 (async () => {
   try {
     const config = await readConfig();
 
-    const noticias = await puxarNoticias(config.siteUrl, 5);
-    await gerarRSS(noticias, config);
-    await pushGit(config);
+    const noticias = await puxarNoticiasMaringa(5, config.siteUrl);
+    await gerarRSS(noticias, config.siteUrl);
 
-    console.log('✅ RSS gerado e enviado com sucesso!');
-  } catch (err) {
-    console.error('❌ Erro geral:', err.message);
+    await pushGit(config);
+  } catch (e) {
+    console.error('❌ Erro:', e.message);
   }
 })();
