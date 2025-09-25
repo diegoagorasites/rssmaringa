@@ -12,18 +12,23 @@ git config --global user.email "$GIT_EMAIL"
 # Remove credential helper que não existe
 git config --global --unset credential.helper
 
-# Adiciona o arquivo específico
+# Adiciona os dois RSS
 git add data/rss.xml
+git add data_londrina/rss.xml
 
-# Verifica se há algo a commitar
+# Commit se houver alterações
 if git diff --cached --quiet; then
   echo "✅ Nada para commitar"
 else
-  echo "📦 Commitando arquivo..."
-  git commit -m "Atualização automática do RSS em $(date '+%Y-%m-%d %H:%M:%S')"
+  echo "📦 Commitando arquivos de RSS..."
+  git commit -m "Atualização automática do RSS Maringá + Londrina em $(date '+%Y-%m-%d %H:%M:%S')"
 fi
 
-# Push com autenticação direta
+# Puxa alterações do remoto para evitar rejeição de push
+echo "🔄 Puxando alterações do remoto..."
+git pull --rebase origin master
+
+# Push
 echo "📤 Enviando para o repositório..."
 git push https://${GIT_USERNAME}:${GITHUB_TOKEN}@${REPO_URL} master
 

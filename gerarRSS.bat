@@ -1,11 +1,11 @@
-﻿@echo off
-cd /d "C:\Users\Casa\Desktop\RSSMaringa"
+﻿echo off
+cd /d "C:\Users\neoof\Downloads\TeamViewer_ReceivedFiles\RSSMaringa"
 
 :: Executa o script Node e salva erros
-node rss.js >nul 2> error.log
+node index.js >nul 2> error.log
 
 :: Adiciona mudanças ao Git
-git add .
+git add data/rss.xml
 
 :: Cria commit com data e hora
 git commit -m "Atualização automática - %date% %time%" >nul 2>&1
